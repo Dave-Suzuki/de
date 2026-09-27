@@ -569,18 +569,25 @@
         ? `<dt>ハンド</dt><dd>${esc(m.cls)}（${topText(m.top)}）</dd>`
         : `<dt>${T('推定勝率')}</dt><dd class="num">${pct(m.equity)}${d.toCall > 0 ? `（必要 ${pct(m.potOdds)}）` : ''}</dd>`;
       const should = d.grade === 'bad' ? `<div class="should"><b>こうすべきだった：</b>${esc(d.rec.label)}</div>` : '';
-      return `<li class="step ${d.grade}">
-        <div class="step-head"><span class="step-street">${T(HE.STREET_JA[d.street])}・${T(d.position)}</span>${gradeHTML(d.grade)}</div>
-        <div class="step-cards">${cardsHTML(d.hole)}<span class="gap"></span>${cardsHTML(d.board)}</div>
-        <dl>
-          <dt>あなた</dt><dd>${esc(d.label)}</dd>
-          <dt>推奨</dt><dd>${esc(d.rec.label)}${d.rec.acceptable.length ? `（${d.rec.acceptable.map((a) => ACTION_NAME[a]).join('・')}も可）` : ''}</dd>
-          ${est}
-          <dt>実際の勝率</dt><dd class="num">${pct(hindsight)} <span class="muted">相手の手札が見えていた場合</span></dd>
-        </dl>
-        ${should}
-        <details${d.grade === 'bad' ? ' open' : ''}><summary>理由を見る</summary>${reasonsHTML(d.rec.reasons)}</details>
-      </li>`;
+      // 良い判断は1行にたたんでおき、改善が必要な判断だけ最初から開いておく
+      return `<li class="step ${d.grade}"><details class="step-box"${d.grade === 'bad' ? ' open' : ''}>
+        <summary class="step-head">
+          <span class="step-street">${esc(HE.STREET_JA[d.street])}・${esc(d.position)}</span>
+          <span class="step-you">${esc(d.label)}${d.grade === 'bad' ? ` → <b>${esc(d.rec.label)}</b>` : ''}</span>
+          ${gradeHTML(d.grade)}
+        </summary>
+        <div class="step-body">
+          <div class="step-cards">${cardsHTML(d.hole)}<span class="gap"></span>${cardsHTML(d.board)}</div>
+          <dl>
+            <dt>あなた</dt><dd>${esc(d.label)}</dd>
+            <dt>推奨</dt><dd>${esc(d.rec.label)}${d.rec.acceptable.length ? `（${d.rec.acceptable.map((a) => ACTION_NAME[a]).join('・')}も可）` : ''}</dd>
+            ${est}
+            <dt>実際の勝率</dt><dd class="num">${pct(hindsight)} <span class="muted">相手の手札が見えていた場合</span></dd>
+          </dl>
+          ${should}
+          <div class="step-reasons"><div class="eyebrow">理由</div>${reasonsHTML(d.rec.reasons)}</div>
+        </div>
+      </details></li>`;
     });
 
     const bad = res.decisions.filter((d) => d.grade === 'bad');
@@ -600,6 +607,7 @@
       </div>
       <p class="lead">${overall}</p>
       ${res.decisions.length ? `<div class="tally"><span class="grade good">ナイス ${counts.good}</span><span class="grade ok">許容 ${counts.ok}</span><span class="grade bad">改善 ${counts.bad}</span></div>` : ''}
+      ${counts.good + counts.ok && counts.bad ? '<p class="muted fold-note">ナイス判断・許容範囲の場面はたたんであります。タップで開けます。</p>' : ''}
       <ol class="timeline">${steps.join('')}</ol>
       <details><summary>全員の手札を見る</summary><div class="showdown-list">${everyone}</div></details>
       <div class="btn-row"><button class="btn" id="next-hand">次のハンド<kbd>Space</kbd></button></div>`;
