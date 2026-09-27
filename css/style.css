@@ -408,6 +408,8 @@ button, select, input { font: inherit; color: inherit; }
 .act:active:not(:disabled) { transform: translateY(1px); }
 .act:hover:not(:disabled) { filter: brightness(1.08); }
 .act:disabled { opacity: 0.35; cursor: default; }
+.act.pressed, .btn.pressed { animation: pressed .22s ease-out; }
+@keyframes pressed { 40% { transform: translateY(2px) scale(0.97); filter: brightness(1.25); } }
 .preset kbd, .btn kbd, .keys-help kbd {
   font-family: var(--mono); font-size: 10px; line-height: 1;
   border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px; margin-left: 6px; opacity: 0.6;

@@ -539,6 +539,7 @@
       state.waitingNext = resolve;
       const b = $('next-hand');
       if (b) { b.onclick = () => { A.play('click'); state.waitingNext = null; resolve(); }; b.focus({ preventScroll: true }); }
+      flushPendingKey();
     });
   }
 
@@ -692,6 +693,7 @@
           setRaise(Number(slider.value) + dir * (big ? ctx.bb * 5 : step));
         },
       };
+      flushPendingKey();
     });
   }
 
@@ -703,29 +705,76 @@
    * 物理キー位置（e.code）で判定するので、日本語入力がオンでも効く */
   const ACTION_KEYS = { KeyA: 'fold', Digit1: 'fold', KeyS: 'call', Digit2: 'call', KeyD: 'raise', Digit3: 'raise' };
   const PRESET_KEYS = [['Q', 'KeyQ'], ['W', 'KeyW'], ['E', 'KeyE'], ['R', 'KeyR'], ['T', 'KeyT']];
+  const NEXT_KEYS = new Set(['Space', 'Enter', 'KeyS']);
+  const isGameKey = (code) => ACTION_KEYS[code] || NEXT_KEYS.has(code) || code === 'KeyH'
+    || PRESET_KEYS.some(([, c]) => c === code) || code === 'ArrowLeft' || code === 'ArrowRight';
+
+  function flash(id) {
+    const el = $(id);
+    if (el) retrigger(el, 'pressed');
+  }
+
+  /* 今受け付けられるキーなら実行して true を返す */
+  function runKey(code, shift) {
+    if (state.turn) {
+      if (ACTION_KEYS[code]) {
+        const act = ACTION_KEYS[code];
+        const id = { fold: 'btn-fold', call: 'btn-call', raise: 'btn-raise' }[act];
+        if ($(id).disabled) return false;
+        flash(id);
+        state.turn[act]();
+        return true;
+      }
+      const pi = PRESET_KEYS.findIndex(([, c]) => c === code);
+      if (pi >= 0) { state.turn.preset(pi); return true; }
+      if (code === 'ArrowLeft' || code === 'ArrowRight') { state.turn.nudge(code === 'ArrowRight' ? 1 : -1, shift); return true; }
+      if (code === 'KeyH' && $('show-hint')) { $('show-hint').click(); return true; }
+      return false;
+    }
+    if (NEXT_KEYS.has(code) && state.waitingNext) {
+      A.play('click');
+      flash('next-hand');
+      const r = state.waitingNext; state.waitingNext = null; r();
+      return true;
+    }
+    return false;
+  }
+
+  /* 画面の切り替わり中（相手の行動・結果の表示待ち）に押されたキーは少しの間とっておき、
+   * 受け付けられるようになった瞬間に実行する */
+  const BUFFER_MS = { action: 900, next: 2500 };
+  let pendingKey = null;
+  function flushPendingKey() {
+    if (!pendingKey) return;
+    const { code, shift, at } = pendingKey;
+    pendingKey = null;
+    const limit = NEXT_KEYS.has(code) && state.waitingNext ? BUFFER_MS.next : BUFFER_MS.action;
+    if (performance.now() - at <= limit) runKey(code, shift);
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hideTerm(); return; }
     if (!$('title-screen').hidden) {
       if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); start(true); }
       return;
     }
-    if (e.target.matches('input, select, textarea') && e.target.type !== 'range') return;
+    // 文字入力欄（用語検索）とスライダーの矢印だけはブラウザに任せる
+    const t = e.target;
+    if (t.matches('textarea, input:not([type="range"]):not([type="checkbox"])')) return;
+    if (t.type === 'range' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const code = e.code;
-    const handled = () => { e.preventDefault(); hideTerm(); };
-    if (state.turn) {
-      if (ACTION_KEYS[code]) { handled(); state.turn[ACTION_KEYS[code]](); return; }
-      const pi = PRESET_KEYS.findIndex(([, c]) => c === code);
-      if (pi >= 0) { handled(); state.turn.preset(pi); return; }
-      if ((code === 'ArrowLeft' || code === 'ArrowRight') && e.target.type !== 'range') {
-        handled(); state.turn.nudge(code === 'ArrowRight' ? 1 : -1, e.shiftKey); return;
-      }
-      if (code === 'KeyH' && $('show-hint')) { handled(); $('show-hint').click(); }
-    } else if ((code === 'Space' || code === 'Enter' || code === 'KeyS') && state.waitingNext) {
-      handled();
-      A.play('click');
-      const r = state.waitingNext; state.waitingNext = null; r();
-    }
+    if (!isGameKey(e.code)) return;
+    e.preventDefault();
+    hideTerm();
+    if (e.repeat) return;
+    if (!runKey(e.code, e.shiftKey)) pendingKey = { code: e.code, shift: e.shiftKey, at: performance.now() };
+  });
+
+  // マウスで設定を触った後もキーが効くように、フォーカスを残さない
+  document.addEventListener('change', (e) => { if (e.target.matches('select')) e.target.blur(); });
+  document.addEventListener('pointerup', (e) => {
+    const b = e.target.closest('.mode, .toggle, .preset, .act, summary');
+    if (b) setTimeout(() => b.blur(), 0);
   });
 
   /* ---------- 用語の説明 ---------- */
