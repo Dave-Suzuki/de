@@ -408,6 +408,15 @@ button, select, input { font: inherit; color: inherit; }
 .act:active:not(:disabled) { transform: translateY(1px); }
 .act:hover:not(:disabled) { filter: brightness(1.08); }
 .act:disabled { opacity: 0.35; cursor: default; }
+.preset kbd, .btn kbd, .keys-help kbd {
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+  border: 1px solid currentColor; border-radius: 4px; padding: 1px 4px; margin-left: 6px; opacity: 0.6;
+}
+.keys-help { margin: 0; font-size: 11px; color: var(--ink-3); line-height: 2; }
+.keys-help kbd { margin: 0 2px 0 6px; color: var(--ink-2); }
+@media (hover: none), (max-width: 640px) {
+  .keys-help, .preset kbd, .btn kbd { display: none; }
+}
 .act kbd { font-family: var(--mono); font-size: 10px; opacity: 0.6; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
 .act-fold { background: #3a2427; color: #ffd9d9; }
 .act-call { background: #24413a; color: #d9f5e7; }

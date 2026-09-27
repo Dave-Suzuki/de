@@ -510,7 +510,7 @@
       coach().innerHTML = `${flow}<div class="eyebrow">${street}・${ctx.position}</div>
         <div class="verdict">どうする？</div>
         <p class="lead">${T(ctx.toCall > 0 ? `コールには ${bbs(ctx.toCall)} 必要です。` : 'まだ誰もレイズしていません。')}${T(`あなたは ${ctx.position} の席。前の人の行動を確認して選びましょう。`)}</p>
-        <div class="btn-row"><button class="btn ghost" id="show-hint">ヒントを見る</button></div>`;
+        <div class="btn-row"><button class="btn ghost" id="show-hint">ヒントを見る<kbd>H</kbd></button></div>`;
       $('show-hint').onclick = () => {
         A.play('pop');
         coach().innerHTML = `${flow}<div class="eyebrow">${street}・ヒント</div>${recHTML(rec, ctx)}`;
@@ -550,7 +550,7 @@
       <div class="also">あなた：${esc(rec.label)}${rec.rec.acceptable.length ? `／これも可：${rec.rec.acceptable.map((a) => ACTION_NAME[a]).join('、')}` : ''}</div>
       ${meterHTML(rec.rec, { street: 'preflop' })}
       ${reasonsHTML(rec.rec.reasons)}
-      <div class="btn-row"><button class="btn" id="next-hand">次のハンド（N）</button></div>`;
+      <div class="btn-row"><button class="btn" id="next-hand">次のハンド<kbd>Space</kbd></button></div>`;
   }
 
   /* ---------- レビュー ---------- */
@@ -601,7 +601,7 @@
       ${res.decisions.length ? `<div class="tally"><span class="grade good">ナイス ${counts.good}</span><span class="grade ok">許容 ${counts.ok}</span><span class="grade bad">改善 ${counts.bad}</span></div>` : ''}
       <ol class="timeline">${steps.join('')}</ol>
       <details><summary>全員の手札を見る</summary><div class="showdown-list">${everyone}</div></details>
-      <div class="btn-row"><button class="btn" id="next-hand">次のハンド（N）</button></div>`;
+      <div class="btn-row"><button class="btn" id="next-hand">次のハンド<kbd>Space</kbd></button></div>`;
   }
 
   /* ---------- 操作 ---------- */
@@ -654,7 +654,7 @@
         presets.push(['ポット', ctx.currentBet + potAfter]);
       }
       presets.push(['オールイン', max]);
-      $('presets').innerHTML = presets.map(([l], i) => `<button class="preset" data-i="${i}">${l}</button>`).join('');
+      $('presets').innerHTML = presets.map(([l], i) => `<button class="preset" data-i="${i}">${l}${PRESET_KEYS[i] ? `<kbd>${PRESET_KEYS[i][0]}</kbd>` : ''}</button>`).join('');
       $('presets').querySelectorAll('.preset').forEach((b) => { b.onclick = () => { A.play('click'); setRaise(presets[Number(b.dataset.i)][1]); }; });
       slider.oninput = () => setRaise(Number(slider.value));
 
@@ -682,6 +682,15 @@
           const to = Number(slider.value);
           finish({ action: 'raise', amount: to, label: raiseText(ctx, to) });
         },
+        preset: (i) => {
+          if (!canRaise || !presets[i]) return;
+          A.play('click');
+          setRaise(presets[i][1]);
+        },
+        nudge: (dir, big) => {
+          if (!canRaise) return;
+          setRaise(Number(slider.value) + dir * (big ? ctx.bb * 5 : step));
+        },
       };
     });
   }
@@ -690,20 +699,31 @@
   $('btn-call').onclick = () => state.turn && state.turn.call();
   $('btn-raise').onclick = () => state.turn && state.turn.raise();
 
+  /* キー操作：左手のホームポジションで完結する配置。
+   * 物理キー位置（e.code）で判定するので、日本語入力がオンでも効く */
+  const ACTION_KEYS = { KeyA: 'fold', Digit1: 'fold', KeyS: 'call', Digit2: 'call', KeyD: 'raise', Digit3: 'raise' };
+  const PRESET_KEYS = [['Q', 'KeyQ'], ['W', 'KeyW'], ['E', 'KeyE'], ['R', 'KeyR'], ['T', 'KeyT']];
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { hideTerm(); return; }
     if (!$('title-screen').hidden) {
-      if (e.key === 'Enter') start(true);
+      if (e.key === 'Enter' || e.code === 'Space') { e.preventDefault(); start(true); }
       return;
     }
     if (e.target.matches('input, select, textarea') && e.target.type !== 'range') return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key.toLowerCase();
+    const code = e.code;
+    const handled = () => { e.preventDefault(); hideTerm(); };
     if (state.turn) {
-      if (k === 'f') state.turn.fold();
-      else if (k === 'c') state.turn.call();
-      else if (k === 'r') state.turn.raise();
-    } else if (k === 'n' && state.waitingNext) {
+      if (ACTION_KEYS[code]) { handled(); state.turn[ACTION_KEYS[code]](); return; }
+      const pi = PRESET_KEYS.findIndex(([, c]) => c === code);
+      if (pi >= 0) { handled(); state.turn.preset(pi); return; }
+      if ((code === 'ArrowLeft' || code === 'ArrowRight') && e.target.type !== 'range') {
+        handled(); state.turn.nudge(code === 'ArrowRight' ? 1 : -1, e.shiftKey); return;
+      }
+      if (code === 'KeyH' && $('show-hint')) { handled(); $('show-hint').click(); }
+    } else if ((code === 'Space' || code === 'Enter' || code === 'KeyS') && state.waitingNext) {
+      handled();
+      A.play('click');
       const r = state.waitingNext; state.waitingNext = null; r();
     }
   });
