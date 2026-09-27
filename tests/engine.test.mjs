@@ -40,6 +40,51 @@ assert.ok(d.flushDraw && d.outs === 9);
 const o = HE.draws(parse('8c 9d'), parse('Th Jc 2s'));
 assert.ok(o.oesd && o.outs === 8);
 
+// 狭いレンジでも偏らない（以前は試行が尽きるとランダムな手が混ざった）：99 vs 上位4% ≈ 37.5%
+const narrow = HE.equity(parse('9s 9h'), [], [{ range: 0.04 }], 6000);
+assert.ok(narrow > 0.35 && narrow < 0.40, `99 vs top4% ${narrow}`);
+
+// ボードのストレートより高いストレートへのアウツ
+assert.equal(HE.draws(parse('Ts Jc'), parse('5d 6h 7c 8s')).outs, 4);
+// ボードと同じ役でもキッカーまで比べる
+assert.ok(HE.improvesBoard(parse('Ah Ad'), parse('8c 8s 8h Kd Kc')));
+assert.ok(HE.improvesBoard(parse('Ac Kd'), parse('8c 8s 8h 8d 2c')));
+assert.ok(!HE.improvesBoard(parse('4h 3d'), parse('5c 6s 7h 8d 9c')));
+
+// 最小レイズに届かないオールインでは、すでに行動した人はレイズできない
+{
+  const ctxs = [];
+  const ui = { onUpdate() {}, onLog() {}, delay: async () => {}, botDelay: () => 0,
+    askHero: async ({ ctx }) => {
+      ctxs.push({ ...ctx, heroTotal: g.players[0].totalBet });
+      return ctxs.length === 1 ? { action: 'raise', amount: 300 } : ctxs.length === 2 ? { action: 'raise', amount: 2000 } : { action: ctx.toCall ? 'fold' : 'check' };
+    } };
+  const g = new HE.Game(ui, { numOpponents: 2, rng: () => 0.42 });
+  g.button = 2;
+  g.players[2].stack = 350;
+  const orig = HE.botDecide;
+  const seq = { 1: ['call'], 2: ['raise'] };
+  HE.botDecide = (p, c) => { const a = (seq[p.id] || []).shift() || 'call'; return a === 'raise' ? { action: 'raise', amount: 350 } : { action: c.toCall ? a : 'check' }; };
+  await g.playHand('coach');
+  HE.botDecide = orig;
+  assert.equal(ctxs[1].canRaise, false, 'no re-raise after incomplete all-in');
+  assert.equal(ctxs[1].raises, 1);
+  // 2回目の「レイズ」はコール扱い → 次の判断（フロップ）の時点で出した額は 350
+  assert.equal(ctxs[2].heroTotal, 350, 'hero raise was turned into a call');
+}
+
+// 端数チップはボタンの左隣に近い勝者から配る
+{
+  const ui = { onUpdate() {}, onLog() {}, delay: async () => {} };
+  const g = new HE.Game(ui, { numOpponents: 3 });
+  g.board = parse('As Ks Qs Js Ts');
+  g.button = 1;
+  g.players.forEach((p, i) => Object.assign(p, { hole: parse(['2c 3d', '4c 5d', '6c 7d', '8c 9d'][i]), folded: i === 3, totalBet: [100, 100, 100, 50][i], won: 0, stack: 0 }));
+  g.settle();
+  // ポット 350 を3人で分ける（10点単位で 12/12/11）。ボタン(席1)の左隣＝席2 から順に端数を配る
+  assert.equal(JSON.stringify(g.players.map((p) => p.won)), '[120,110,120,0]');
+}
+
 // エンジン：ヒーローもコーチ通りに打つ自動対局でチップ保存を検証
 let seed = 12345;
 const rng = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);

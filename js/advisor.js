@@ -217,7 +217,40 @@
   }
 
   function advise(ctx) {
-    return ctx.street === 'preflop' ? preflop(ctx) : postflop(ctx);
+    let rec = ctx.street === 'preflop' ? preflop(ctx) : postflop(ctx);
+    if (ctx.street === 'preflop') rec = cheapCall(rec, ctx);
+    return ctx.canRaise === false ? withoutRaise(rec, ctx) : rec;
+  }
+
+  /* プリフロップで追加の額がごくわずかなら、どんな2枚でもコールが得（勝率が必要勝率を下回ることはまずない） */
+  function cheapCall(rec, ctx) {
+    if (rec.action !== 'fold' || ctx.toCall <= 0) return rec;
+    const need = ctx.toCall / (ctx.pot + ctx.toCall);
+    if (need > 0.12) return rec;
+    rec.action = 'call';
+    rec.acceptable = rec.acceptable.filter((a) => a !== 'call').concat('fold');
+    rec.label = ctx.toCall >= ctx.stack ? `コール（オールイン ${BBs(ctx.toCall, ctx.bb)}）` : `コール（${BBs(ctx.toCall, ctx.bb)}）`;
+    rec.reasons = rec.reasons.concat(`ただし、あと ${BBs(ctx.toCall, ctx.bb)} で ${BBs(ctx.pot + ctx.toCall, ctx.bb)} のポットに参加できます。必要勝率は ${pct(need)} だけで、どんな2枚でもそれ以上の勝率があるのでコールが得です。`);
+    rec.metrics.potOdds = need;
+    return rec;
+  }
+
+  /* レイズできない場面では、レイズの推奨をコール（またはチェック）に置き換える */
+  function withoutRaise(rec, ctx) {
+    rec.acceptable = rec.acceptable.filter((a) => a !== 'raise');
+    if (rec.action !== 'raise') return rec;
+    const action = ctx.toCall > 0 ? 'call' : 'check';
+    rec.acceptable = rec.acceptable.filter((a) => a !== action);
+    rec.action = action;
+    rec.amount = 0;
+    rec.label = action === 'check' ? 'チェック'
+      : ctx.toCall >= ctx.stack ? `コール（オールイン ${BBs(ctx.toCall, ctx.bb)}）` : `コール（${BBs(ctx.toCall, ctx.bb)}）`;
+    let why;
+    if (ctx.stack <= ctx.toCall) why = '本来はレイズしたい強さですが、スタックが足りないのでコール（オールイン）で勝負します。';
+    else if (ctx.oppsCanAct === 0) why = '相手は全員オールインしているので、これ以上レイズしても意味がありません。';
+    else why = '直前のオールインが最小レイズ額に届いていないため、すでに行動したあなたはレイズできません（コールかフォールドのみ）。';
+    rec.reasons = rec.reasons.concat(why);
+    return rec;
   }
 
   /* プレイヤーのアクションを採点する */

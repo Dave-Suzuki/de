@@ -3,9 +3,9 @@
   'use strict';
 
   const BOT_PROFILES = [
-    { name: 'タケシ', style: '堅実', loose: -1, aggr: 0.35, bluff: 0.05, sticky: 0.05 },
+    { name: 'タケシ', style: '堅実', loose: -1, aggr: 0.65, bluff: 0.05, sticky: 0.05 },
     { name: 'ミホ', style: '攻撃的', loose: 1, aggr: 0.8, bluff: 0.25, sticky: 0.1 },
-    { name: 'ケン', style: 'コール好き', loose: 2, aggr: 0.2, bluff: 0.05, sticky: 0.4 },
+    { name: 'ケン', style: 'コール好き', loose: 2, aggr: 0.1, bluff: 0.05, sticky: 0.4 },
     { name: 'サクラ', style: 'バランス', loose: 0, aggr: 0.55, bluff: 0.12, sticky: 0.12 },
     { name: 'ゴロー', style: 'ルーズ', loose: 2, aggr: 0.6, bluff: 0.2, sticky: 0.25 },
   ];
@@ -21,7 +21,7 @@
     if (action === 'fold' && ctx.toCall > 0) {
       const cheap = ctx.toCall <= ctx.bb || ctx.toCall / (pot) < 0.2;
       if (rng() < st.sticky * (cheap ? 2 : 1)) action = 'call';
-    } else if (action === 'raise' && rng() < (1 - st.aggr) * 0.35) {
+    } else if (action === 'raise' && rng() < (1 - st.aggr) * 0.55) {
       action = ctx.toCall > 0 ? 'call' : 'check';
     } else if (action === 'check' && ctx.street !== 'preflop' && rng() < st.bluff) {
       action = 'raise';
@@ -36,7 +36,7 @@
     if (action === 'call' && ctx.toCall === 0) action = 'check';
     if (action === 'check' && ctx.toCall > 0) action = 'fold';
     if (action === 'raise') {
-      if (ctx.stack <= ctx.toCall) action = 'call';
+      if (ctx.stack <= ctx.toCall || ctx.canRaise === false) action = ctx.toCall > 0 ? 'call' : 'check';
       else {
         const step = ctx.bb / 2;
         amount = Math.round(amount / step) * step;

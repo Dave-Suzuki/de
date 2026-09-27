@@ -140,6 +140,7 @@
           this.currentBet = 0;
           this.lastRaise = this.bb;
           this.raises = 0;
+          this.resetRaiseRights();
           this.log(`${STREET_JA[street]}：${this.board.map(HE.cardText).join(' ')}`, 'street');
           this.render();
           await this.ui.delay(this.live().filter((p) => this.canAct(p)).length > 1 ? 450 : 900);
@@ -149,6 +150,7 @@
           this.lastRaise = this.bb;
           this.raises = 0;
           this.limpers = 0;
+          this.resetRaiseRights();
           this.render();
           await this.bettingRound(this.seatAfter(bbSeat));
         }
@@ -171,6 +173,12 @@
         showdown: this.showdown,
         winners: this.players.filter((p) => p.won > 0).map((p) => ({ id: p.id, amount: p.won, isHero: !!p.isHero, handName: p.handName })),
       });
+      if (this.mode === 'drill') {
+        // 特訓モードで自分の番が来なかったハンド（BB のウォークなど）もチップは動かさない
+        P.forEach((p, i) => { p.stack = stackBefore[i]; });
+        this.render();
+        return this.summary(stackBefore, true);
+      }
       return this.summary(stackBefore, false);
     }
 
@@ -226,14 +234,25 @@
         }
         const raised = this.applyAction(p, decision, ctx);
         this.render();
-        if (raised) {
-          const idx = this.players.indexOf(p);
-          pending = this.orderFrom(this.seatAfter(idx)).filter((q) => q !== p && this.canAct(q));
+        const after = this.orderFrom(this.seatAfter(this.players.indexOf(p))).filter((q) => q !== p && this.canAct(q));
+        if (raised === 'full') {
+          pending = after;
+        } else if (raised === 'partial') {
+          // 最小レイズに届かないオールイン：まだ行動していない人はそのまま。
+          // すでに行動した人はコールかフォールドだけ（レイズの権利は戻らない）
+          pending = after.filter((q) => q.bet < this.currentBet || pending.includes(q));
+          for (const q of pending) if (this.actedFull.has(q)) this.noRaise.add(q);
         }
       }
     }
 
+    resetRaiseRights() {
+      this.actedFull = new Set(); // 最後のフルレイズ以降に行動した人
+      this.noRaise = new Set();   // レイズできない人（不完全なオールインに直面）
+    }
+
     buildCtx(p) {
+      const oppsCanAct = this.live().filter((q) => q !== p && !q.allIn).length;
       const opps = this.live().filter((q) => q !== p).map((q) => ({ range: q.pfRange, aggressive: q.streetAggr }));
       const liveOrder = this.orderFrom(this.seatAfter(this.button)).filter((q) => !q.folded);
       const inPosition = this.street === 'preflop'
@@ -258,14 +277,20 @@
         inPosition,
         aggressor: this.lastAggressor === p.id,
         maxOppStack: Math.max(0, ...this.live().filter((q) => q !== p).map((q) => q.stack + q.bet)),
+        oppsCanAct,
+        // レイズできるか：スタックが足りる／レイズの権利がある／相手がまだ行動できる
+        canRaise: p.stack > this.currentBet - p.bet && !this.noRaise.has(p) && oppsCanAct > 0,
       };
     }
 
-    /* 戻り値: アクションが再オープンされたか（レイズ） */
+    /* 戻り値: 'full'（フルレイズでアクション再開）/ 'partial'（最小に届かないオールイン）/ false */
     applyAction(p, d, ctx) {
       const toCall = this.currentBet - p.bet;
       let text, type;
       let raised = false;
+      // 不正なアクションは安全な側に直す（UI・コーチ・CPUは本来ここに来ない）
+      if (d.action === 'check' && toCall > 0) d = { ...d, action: 'fold' };
+      if (d.action === 'raise' && (this.noRaise.has(p) || p.stack <= toCall)) d = { ...d, action: 'call' };
       if (d.action === 'fold') {
         p.folded = true;
         text = 'フォールド';
@@ -283,22 +308,29 @@
           else p.pfRange = Math.min(p.pfRange, 0.35);
         }
       } else {
-        const to = Math.min(Math.max(d.amount, this.currentBet + 1), p.bet + p.stack);
+        // 最小レイズ額に満たない額は、スタックが許す範囲で最小額まで引き上げる
+        const to = Math.min(Math.max(d.amount || 0, this.currentBet + this.lastRaise), p.bet + p.stack);
         const size = to - this.currentBet;
         const wasBet = this.currentBet === 0;
         this.put(p, to - p.bet);
-        if (size >= this.lastRaise) this.lastRaise = size;
-        if (this.street === 'preflop') {
+        const full = size >= this.lastRaise || wasBet;
+        if (this.street === 'preflop' && full) {
           p.pfRange = Math.min(p.pfRange, [0.22, 0.08, 0.04][Math.min(this.raises, 2)]);
         }
         this.currentBet = Math.max(this.currentBet, p.bet);
-        this.raises++;
+        if (full) {
+          this.lastRaise = Math.max(size, this.lastRaise);
+          this.raises++;
+          this.actedFull = new Set();
+          this.noRaise = new Set();
+        }
         this.lastAggressor = p.id;
         p.streetAggr = true;
-        raised = true;
+        raised = full ? 'full' : 'partial';
         text = p.allIn ? `オールイン ${HE.BBs(p.bet, this.bb)}` : `${wasBet ? 'ベット' : 'レイズ'} ${HE.BBs(p.bet, this.bb)}`;
         type = p.allIn ? 'allin' : wasBet ? 'bet' : 'raise';
       }
+      this.actedFull.add(p);
       p.lastAction = text;
       p.lastActionType = type;
       p.actSeq = ++this.actionSeq;
@@ -353,11 +385,18 @@
           const s = scores.get(p);
           if (s > best) { best = s; winners = [p]; } else if (s === best) winners.push(p);
         }
-        const share = Math.floor(amount / winners.length / (this.sb / 5)) * (this.sb / 5);
-        let rest = amount - share * winners.length;
+        // 割り切れない端数は、ボタンの左隣に近い勝者から1単位ずつ配る
+        const n = P.length;
+        winners.sort((a, b) => ((P.indexOf(a) - this.button - 1 + n) % n) - ((P.indexOf(b) - this.button - 1 + n) % n));
+        const unit = this.sb / 5;
+        const units = Math.floor(amount / unit);
+        const base = Math.floor(units / winners.length);
+        let extra = units - base * winners.length;
+        let loose = amount - units * unit; // 単位未満の端数（通常は0）
         for (const w of winners) {
-          const got = share + (rest > 0 ? rest : 0);
-          rest = 0;
+          let got = base * unit;
+          if (extra > 0) { got += unit; extra--; }
+          if (loose > 0) { got += loose; loose = 0; }
           w.stack += got;
           w.won += got;
         }

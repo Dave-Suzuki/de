@@ -638,7 +638,7 @@
       A.play('turn');
       const max = ctx.myBet + ctx.stack;
       const min = Math.min(ctx.minRaiseTo, max);
-      const canRaise = ctx.stack > ctx.toCall;
+      const canRaise = ctx.canRaise !== false && ctx.stack > ctx.toCall;
       const step = ctx.bb / 2;
       const slider = $('raise-slider');
       slider.min = min; slider.max = max; slider.step = step;
