@@ -3,6 +3,16 @@
 テキサスホールデム（ノーリミット）を CPU 相手に打ちながら学べるブラウザアプリです。
 ビルド不要で、`index.html` をブラウザで開くだけで動きます。
 
+## ウェブサイトとして公開する（GitHub Pages）
+
+`.github/workflows/pages.yml` が、push のたびにテストを実行してサイトを GitHub Pages に公開します。初回だけ次の設定が必要です。
+
+1. リポジトリの **Settings → Pages** を開く
+2. **Build and deployment → Source** を **GitHub Actions** にする
+3. **Actions** タブで「Deploy to GitHub Pages」を再実行する（または何か push する）
+
+公開 URL は `https://dave-suzuki.github.io/de/` です。非公開リポジトリで Pages を使うには GitHub Pro 以上が必要です（無料プランの場合はリポジトリを公開にする必要があります）。
+
 ## 3つのモード
 
 | モード | 内容 |
