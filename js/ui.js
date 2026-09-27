@@ -802,6 +802,7 @@
     pop.style.left = `${left}px`;
     pop.style.top = `${top}px`;
     retrigger(pop, 'show');
+    termOpenedAt = performance.now();
     A.play('pop');
   }
   function hideTerm() { pop.hidden = true; }
@@ -810,8 +811,12 @@
     if (t && t.dataset.term !== '') { e.preventDefault(); showTerm(t); return; }
     if (!e.target.closest('#term-pop')) hideTerm();
   });
+  // ページ自体のスクロールでだけ閉じる。ハンド履歴の自動スクロールなど、
+  // 中の要素のスクロールでは閉じない（開いた直後のスクロールも無視）
+  let termOpenedAt = 0;
+  const hideOnScroll = () => { if (performance.now() - termOpenedAt > 300) hideTerm(); };
   window.addEventListener('resize', hideTerm);
-  document.addEventListener('scroll', hideTerm, true);
+  window.addEventListener('scroll', hideOnScroll);
 
   function buildGlossary() {
     const groups = new Map();
