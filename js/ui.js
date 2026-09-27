@@ -941,6 +941,9 @@
   $('start-sound').onclick = () => start(true);
   $('start-mute').onclick = () => start(false);
 
+  // テスト用：自動テストからゲームの状態を読むための入口（読み取り専用）
+  HE.debug = { game: () => game, state };
+
   document.body.insertAdjacentHTML('afterbegin', HE.chars.DEFS);
   buildTitle();
   buildGlossary();
