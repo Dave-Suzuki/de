@@ -66,11 +66,13 @@
         button: this.button,
         handNo: this.handNo,
         showdown: this.showdown,
+        streetLog: this.streetLog.slice(),
       };
     }
 
     render() { this.ui.onUpdate(this.snapshot()); }
     log(t, cls) { this.ui.onLog(t, cls); }
+    emit(type, data) { if (this.ui.onEvent) this.ui.onEvent(type, data || {}); }
 
     /* ---- 1ハンド ---- */
     async playHand(mode) {
@@ -94,7 +96,7 @@
       P.forEach((p, i) => {
         Object.assign(p, {
           hole: null, folded: false, allIn: false, bet: 0, totalBet: 0,
-          lastAction: null, pfRange: 1, streetAggr: false, won: 0, handName: null,
+          lastAction: null, lastActionType: null, actSeq: 0, pfRange: 1, streetAggr: false, won: 0, handName: null,
           position: labels[(i - this.button + n) % n],
         });
       });
@@ -104,6 +106,8 @@
       this.lastAggressor = null;
       this.toActId = null;
       this.aborted = false;
+      this.streetLog = [];
+      this.actionSeq = this.actionSeq || 0;
 
       const deck = HE.shuffle(HE.newDeck(), this.rng);
       for (const p of P) p.hole = [deck.pop(), deck.pop()];
@@ -117,14 +121,22 @@
       const bbSeat = this.seatAfter(sbSeat);
       this.put(P[sbSeat], this.sb); P[sbSeat].lastAction = `SB ${HE.BBs(this.sb, this.bb)}`;
       this.put(P[bbSeat], this.bb); P[bbSeat].lastAction = `BB ${HE.BBs(this.bb, this.bb)}`;
+      P[sbSeat].lastActionType = P[bbSeat].lastActionType = 'blind';
+      this.emit('hand', { handNo: this.handNo });
 
       for (const street of STREETS) {
         this.street = street;
         if (street !== 'preflop') {
           const count = street === 'flop' ? 3 : 1;
+          this.emit('street', { street });
+          await this.ui.delay(this.pot() > 0 ? 380 : 0);
           this.deck.pop(); // バーンカード
           for (let i = 0; i < count; i++) this.board.push(this.deck.pop());
-          for (const p of P) { p.bet = 0; p.streetAggr = false; if (!p.folded && !p.allIn) p.lastAction = null; }
+          for (const p of P) {
+            p.bet = 0; p.streetAggr = false;
+            if (!p.folded && !p.allIn) { p.lastAction = null; p.lastActionType = null; }
+          }
+          this.streetLog = [];
           this.currentBet = 0;
           this.lastRaise = this.bb;
           this.raises = 0;
@@ -155,6 +167,10 @@
       this.toActId = null;
       this.settle();
       this.render();
+      this.emit('win', {
+        showdown: this.showdown,
+        winners: this.players.filter((p) => p.won > 0).map((p) => ({ id: p.id, amount: p.won, isHero: !!p.isHero, handName: p.handName })),
+      });
       return this.summary(stackBefore, false);
     }
 
@@ -248,17 +264,20 @@
     /* 戻り値: アクションが再オープンされたか（レイズ） */
     applyAction(p, d, ctx) {
       const toCall = this.currentBet - p.bet;
-      let text;
+      let text, type;
       let raised = false;
       if (d.action === 'fold') {
         p.folded = true;
         text = 'フォールド';
+        type = 'fold';
       } else if (d.action === 'check' || (d.action === 'call' && toCall <= 0)) {
         text = 'チェック';
+        type = 'check';
         if (this.street === 'preflop' && p.position === 'BB') p.pfRange = Math.min(p.pfRange, 1);
       } else if (d.action === 'call' || Math.min(d.amount, p.bet + p.stack) <= this.currentBet) {
         const paid = this.put(p, toCall);
         text = p.allIn ? `オールイン（コール ${HE.BBs(paid, this.bb)}）` : `コール ${HE.BBs(p.bet, this.bb)}`;
+        type = p.allIn ? 'allin' : 'call';
         if (this.street === 'preflop') {
           if (this.raises === 0) { this.limpers++; p.pfRange = Math.min(p.pfRange, p.position === 'SB' ? 0.7 : 0.6); }
           else p.pfRange = Math.min(p.pfRange, 0.35);
@@ -278,9 +297,14 @@
         p.streetAggr = true;
         raised = true;
         text = p.allIn ? `オールイン ${HE.BBs(p.bet, this.bb)}` : `${wasBet ? 'ベット' : 'レイズ'} ${HE.BBs(p.bet, this.bb)}`;
+        type = p.allIn ? 'allin' : wasBet ? 'bet' : 'raise';
       }
       p.lastAction = text;
+      p.lastActionType = type;
+      p.actSeq = ++this.actionSeq;
+      this.streetLog.push({ id: p.id, name: p.name, position: p.position, text, type, isHero: !!p.isHero });
       this.log(`${p.name}：${text}`, p.isHero ? 'hero' : '');
+      this.emit('action', { id: p.id, type, text, isHero: !!p.isHero, street: this.street });
       return raised;
     }
 

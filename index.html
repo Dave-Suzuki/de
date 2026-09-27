@@ -16,6 +16,10 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">♠</span>
       <span class="brand-name">ホールデム道場</span>
+      <button class="rank" id="rank" type="button" title="段位：判断が良いほど上がります">
+        <span class="rank-name" id="rank-name">入門</span>
+        <span class="rank-bar"><span class="rank-fill" id="rank-fill"></span></span>
+      </button>
     </div>
 
     <nav class="modes" role="tablist" aria-label="モード">
@@ -39,6 +43,11 @@
         <div><dt>正解率</dt><dd id="stat-acc">–</dd></div>
         <div><dt>収支</dt><dd id="stat-net">±0BB</dd></div>
       </dl>
+      <div class="sound" role="group" aria-label="サウンド">
+        <button class="toggle" id="opt-bgm" type="button" aria-pressed="true" title="BGM のオン・オフ">♪ BGM</button>
+        <button class="toggle" id="opt-sfx" type="button" aria-pressed="true" title="効果音のオン・オフ">効果音</button>
+        <input type="range" id="opt-vol" min="0" max="1" step="0.05" value="0.7" aria-label="音量">
+      </div>
       <div class="settings">
         <label for="opt-opps">相手</label>
         <select id="opt-opps">
@@ -66,10 +75,13 @@
           <div class="felt-center">
             <div class="street-label" id="street-label">プリフロップ</div>
             <div class="board" id="board"></div>
-            <div class="pot" id="pot">ポット 0BB</div>
+            <div class="pot" id="pot"><span class="pot-chips" aria-hidden="true"></span><span id="pot-text">ポット 0BB</span></div>
           </div>
+          <div class="announce" id="announce" aria-live="polite"></div>
         </div>
         <div class="seats" id="seats"></div>
+        <div class="fx" id="fx" aria-hidden="true"></div>
+        <canvas class="confetti" id="confetti" aria-hidden="true"></canvas>
       </div>
 
       <div class="actions" id="actions">
@@ -90,6 +102,12 @@
 
     <aside class="coach" aria-label="コーチ">
       <div class="coach-card" id="coach"></div>
+
+      <details class="panel" id="glossary-panel">
+        <summary>用語集 <span class="muted">（文中の<span class="term-sample">下線の言葉</span>もタップで説明）</span></summary>
+        <input type="search" id="glossary-search" class="glossary-search" placeholder="用語を検索（例：ポットオッズ）" aria-label="用語を検索">
+        <div class="glossary" id="glossary"></div>
+      </details>
 
       <details class="panel" id="log-panel">
         <summary>ハンド履歴</summary>
@@ -121,9 +139,33 @@
       </details>
     </aside>
   </main>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="term-pop" id="term-pop" role="dialog" hidden></div>
+
+  <div class="title-screen" id="title-screen">
+    <div class="title-card">
+      <div class="title-suits" aria-hidden="true"><span>♠</span><span>♥</span><span>♦</span><span>♣</span></div>
+      <h1 class="title-logo">ホールデム道場</h1>
+      <p class="title-sub">5人のライバルと打ちながら、テキサスホールデムを覚えよう</p>
+      <div class="lineup" id="lineup"></div>
+      <ol class="howto">
+        <li><b>2枚</b>の手札が配られる</li>
+        <li>真ん中に<b>共通カード</b>が3枚→1枚→1枚と出る</li>
+        <li>手札と共通カードから作る<b>一番強い5枚</b>で勝負！</li>
+      </ol>
+      <div class="title-actions">
+        <button class="btn big" id="start-sound" type="button">音ありではじめる</button>
+        <button class="btn ghost" id="start-mute" type="button">音なしではじめる</button>
+      </div>
+    </div>
+  </div>
 </div>
 <!-- APP:END -->
 <script src="js/cards.js"></script>
+<script src="js/glossary.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/characters.js"></script>
 <script src="js/equity.js"></script>
 <script src="js/advisor.js"></script>
 <script src="js/bots.js"></script>
