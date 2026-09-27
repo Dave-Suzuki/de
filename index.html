@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ホールデム道場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Mono:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- APP:START -->
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">♠</span>
+      <span class="brand-name">ホールデム道場</span>
+    </div>
+
+    <nav class="modes" role="tablist" aria-label="モード">
+      <button class="mode" role="tab" id="mode-drill" data-mode="drill" aria-selected="false">
+        <span class="mode-name">プリフロップ特訓</span>
+        <span class="mode-desc">配られた手をどうするか即答</span>
+      </button>
+      <button class="mode" role="tab" id="mode-coach" data-mode="coach" aria-selected="true">
+        <span class="mode-name">ライブコーチ</span>
+        <span class="mode-desc">毎ストリートでアドバイス</span>
+      </button>
+      <button class="mode" role="tab" id="mode-review" data-mode="review" aria-selected="false">
+        <span class="mode-name">レビュー</span>
+        <span class="mode-desc">ヒントなしで打って振り返り</span>
+      </button>
+    </nav>
+
+    <div class="top-right">
+      <dl class="stats">
+        <div><dt>判断数</dt><dd id="stat-count">0</dd></div>
+        <div><dt>正解率</dt><dd id="stat-acc">–</dd></div>
+        <div><dt>収支</dt><dd id="stat-net">±0BB</dd></div>
+      </dl>
+      <div class="settings">
+        <label for="opt-opps">相手</label>
+        <select id="opt-opps">
+          <option value="1">1人</option>
+          <option value="2">2人</option>
+          <option value="3">3人</option>
+          <option value="4">4人</option>
+          <option value="5" selected>5人</option>
+        </select>
+        <label for="opt-speed">速度</label>
+        <select id="opt-speed">
+          <option value="slow">ゆっくり</option>
+          <option value="normal" selected>普通</option>
+          <option value="fast">速い</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="table-area" aria-label="テーブル">
+      <div class="table" id="table">
+        <div class="rail"></div>
+        <div class="felt">
+          <div class="felt-center">
+            <div class="street-label" id="street-label">プリフロップ</div>
+            <div class="board" id="board"></div>
+            <div class="pot" id="pot">ポット 0BB</div>
+          </div>
+        </div>
+        <div class="seats" id="seats"></div>
+      </div>
+
+      <div class="actions" id="actions">
+        <div class="action-buttons">
+          <button class="act act-fold" id="btn-fold" disabled><span>フォールド</span><kbd>F</kbd></button>
+          <button class="act act-call" id="btn-call" disabled><span id="call-label">チェック</span><kbd>C</kbd></button>
+          <button class="act act-raise" id="btn-raise" disabled><span id="raise-label">レイズ</span><kbd>R</kbd></button>
+        </div>
+        <div class="sizing" id="sizing">
+          <div class="presets" id="presets"></div>
+          <div class="slider-row">
+            <input type="range" id="raise-slider" min="0" max="100" step="50" value="0" aria-label="レイズ額" disabled>
+            <output id="raise-out" for="raise-slider">–</output>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="coach" aria-label="コーチ">
+      <div class="coach-card" id="coach"></div>
+
+      <details class="panel" id="log-panel">
+        <summary>ハンド履歴</summary>
+        <ol class="log" id="log"></ol>
+      </details>
+
+      <details class="panel">
+        <summary>基本ガイド</summary>
+        <div class="guide">
+          <h3>役の強さ（強い順）</h3>
+          <ol class="ranks">
+            <li><b>ストレートフラッシュ</b><span>同じスートで連続する5枚</span></li>
+            <li><b>フォーカード</b><span>同じ数字4枚</span></li>
+            <li><b>フルハウス</b><span>スリーカード＋ワンペア</span></li>
+            <li><b>フラッシュ</b><span>同じスート5枚</span></li>
+            <li><b>ストレート</b><span>連続する5枚（A-2-3-4-5 も可）</span></li>
+            <li><b>スリーカード</b><span>同じ数字3枚</span></li>
+            <li><b>ツーペア</b><span>ペアが2組</span></li>
+            <li><b>ワンペア</b><span>ペアが1組</span></li>
+            <li><b>ハイカード</b><span>役なし。一番高いカードで比べる</span></li>
+          </ol>
+          <h3>ポジション</h3>
+          <p>ボタン（BTN）に近いほど後から行動でき有利です。UTG → HJ → CO → BTN の順に参加できるハンドが広がります。SB と BB はブラインドを払う代わりに、フロップ以降は先に行動します。</p>
+          <h3>ポットオッズ</h3>
+          <p>コール額 ÷（ポット＋コール額）が、コールに必要な勝率です。ポット 10BB に 5BB のベットなら、5 ÷ 20 = 25%。勝率がこれを上回ればコールは長期的にプラスです。</p>
+          <h3>2と4の法則</h3>
+          <p>アウツ（完成させるカード）の枚数 × 4 がフロップからリバーまでの完成率、× 2 が次の1枚での完成率のおおよその目安です。</p>
+        </div>
+      </details>
+    </aside>
+  </main>
+</div>
+<!-- APP:END -->
+<script src="js/cards.js"></script>
+<script src="js/equity.js"></script>
+<script src="js/advisor.js"></script>
+<script src="js/bots.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
