@@ -555,7 +555,13 @@
       };
       state.waitingNext = done;
       $('actions').classList.add('next-mode');
-      const go = () => { if (state.waitingNext !== done) return; A.play('click'); state.waitingNext = null; done(); };
+      const go = () => {
+        const r = state.waitingNext;
+        if (!r) return;
+        A.play('click');
+        state.waitingNext = null;
+        r();
+      };
       $('dock-next').onclick = go;
       const b = $('next-hand');
       if (b) { b.onclick = go; if (!narrowDock.matches) b.focus({ preventScroll: true }); }
