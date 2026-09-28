@@ -24,15 +24,15 @@
 
     <nav class="modes" role="tablist" aria-label="モード">
       <button class="mode" role="tab" id="mode-drill" data-mode="drill" aria-selected="false">
-        <span class="mode-name">プリフロップ特訓</span>
+        <span class="mode-name">プリフロップ特訓</span><span class="mode-short">特訓</span>
         <span class="mode-desc">配られた手をどうするか即答</span>
       </button>
       <button class="mode" role="tab" id="mode-coach" data-mode="coach" aria-selected="true">
-        <span class="mode-name">ライブコーチ</span>
+        <span class="mode-name">ライブコーチ</span><span class="mode-short">コーチ</span>
         <span class="mode-desc">毎ストリートでアドバイス</span>
       </button>
       <button class="mode" role="tab" id="mode-review" data-mode="review" aria-selected="false">
-        <span class="mode-name">レビュー</span>
+        <span class="mode-name">レビュー</span><span class="mode-short">レビュー</span>
         <span class="mode-desc">ヒントなしで打って振り返り</span>
       </button>
     </nav>
@@ -43,6 +43,8 @@
         <div><dt>正解率</dt><dd id="stat-acc">–</dd></div>
         <div><dt>収支</dt><dd id="stat-net">±0BB</dd></div>
       </dl>
+      <button class="gear" id="opt-toggle" type="button" aria-expanded="false" aria-controls="opt-panel" title="設定">⚙</button>
+      <div class="opt-panel" id="opt-panel">
       <div class="sound" role="group" aria-label="サウンド">
         <button class="toggle" id="opt-bgm" type="button" aria-pressed="true" title="BGM のオン・オフ">♪ BGM</button>
         <button class="toggle" id="opt-sfx" type="button" aria-pressed="true" title="効果音のオン・オフ">効果音</button>
@@ -63,6 +65,7 @@
           <option value="normal" selected>普通</option>
           <option value="fast">速い</option>
         </select>
+      </div>
       </div>
     </div>
   </header>
@@ -85,16 +88,20 @@
       </div>
 
       <div class="actions" id="actions">
+        <div class="dock-info" id="dock-info" aria-live="polite"></div>
         <div class="action-buttons">
           <button class="act act-fold" id="btn-fold" disabled><span>フォールド</span><kbd>A</kbd></button>
           <button class="act act-call" id="btn-call" disabled><span id="call-label">チェック</span><kbd>S</kbd></button>
           <button class="act act-raise" id="btn-raise" disabled><span id="raise-label">レイズ</span><kbd>D</kbd></button>
         </div>
+        <button class="btn dock-next" id="dock-next" type="button">次のハンドへ</button>
         <div class="sizing" id="sizing">
           <div class="presets" id="presets"></div>
           <div class="slider-row">
             <input type="range" id="raise-slider" min="0" max="100" step="50" value="0" aria-label="レイズ額" disabled>
+            <button class="nudge" id="raise-minus" type="button" aria-label="額を1BB減らす">−</button>
             <output id="raise-out" for="raise-slider">–</output>
+            <button class="nudge" id="raise-plus" type="button" aria-label="額を1BB増やす">＋</button>
           </div>
         </div>
         <p class="keys-help">キー操作：<kbd>A</kbd>フォールド <kbd>S</kbd>チェック/コール <kbd>D</kbd>ベット/レイズ（<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> でも可）・<kbd>Q</kbd>〜<kbd>T</kbd> 額のプリセット・<kbd>←</kbd><kbd>→</kbd> 額の微調整（<kbd>Shift</kbd>で5BBずつ）・<kbd>H</kbd> ヒント・<kbd>Space</kbd> 次のハンド</p>

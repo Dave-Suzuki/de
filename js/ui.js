@@ -503,9 +503,11 @@
   function renderCoachTurn(rec, ctx) {
     const street = HE.STREET_JA[ctx.street];
     const flow = flowHTML(ctx);
+    const dockRec = () => dock(`<span class="dock-label">おすすめ</span><b class="dock-verdict ${rec.action}">${esc(rec.label)}</b>${moreBtn('理由')}`);
     if (state.mode === 'coach') {
       coach().innerHTML = `${flow}<div class="eyebrow">${street}・コーチのおすすめ</div>${recHTML(rec, ctx)}`;
       highlight(rec.action);
+      dockRec();
     } else if (state.mode === 'drill') {
       coach().innerHTML = `${flow}<div class="eyebrow">${street}・${ctx.position}</div>
         <div class="verdict">どうする？</div>
@@ -515,11 +517,15 @@
         A.play('pop');
         coach().innerHTML = `${flow}<div class="eyebrow">${street}・ヒント</div>${recHTML(rec, ctx)}`;
         highlight(rec.action);
+        dockRec();
       };
+      dock(`<span class="dock-label">${esc(ctx.position)}</span><b class="dock-verdict">どうする？</b><button type="button" class="dock-more" id="dock-hint">ヒント</button>`);
+      $('dock-hint').onclick = () => $('show-hint') && $('show-hint').click();
     } else {
       coach().innerHTML = `${flow}<div class="eyebrow">${street}・あなたの番</div>
         <div class="verdict">自分で判断しよう</div>
         <p class="lead">ヒントはハンド終了後のレビューで確認できます。</p>`;
+      dock(`<span class="dock-label">${esc(street)}</span><b class="dock-verdict">自分で判断しよう</b>`);
     }
   }
 
@@ -529,6 +535,13 @@
     $('btn-raise').classList.toggle('hint', action === 'raise');
   }
 
+  /* ---------- 画面下のバー（スマホではここだけ見れば遊べる） ---------- */
+  function dock(html) { $('dock-info').innerHTML = html; }
+  const moreBtn = (label) => `<button type="button" class="dock-more" data-scroll-coach>${label} ▾</button>`;
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-scroll-coach]')) coach().scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+  });
+
   function gradeHTML(g) {
     const t = { good: 'ナイス判断', ok: '許容範囲', bad: '改善しよう' }[g];
     return `<span class="grade ${g}">${t}</span>`;
@@ -536,9 +549,16 @@
 
   function waitNext() {
     return new Promise((resolve) => {
-      state.waitingNext = resolve;
+      const done = () => {
+        $('actions').classList.remove('next-mode');
+        resolve();
+      };
+      state.waitingNext = done;
+      $('actions').classList.add('next-mode');
+      const go = () => { if (state.waitingNext !== done) return; A.play('click'); state.waitingNext = null; done(); };
+      $('dock-next').onclick = go;
       const b = $('next-hand');
-      if (b) { b.onclick = () => { A.play('click'); state.waitingNext = null; resolve(); }; b.focus({ preventScroll: true }); }
+      if (b) { b.onclick = go; if (!narrowDock.matches) b.focus({ preventScroll: true }); }
       flushPendingKey();
     });
   }
@@ -552,6 +572,7 @@
       ${meterHTML(rec.rec, { street: 'preflop' })}
       ${reasonsHTML(rec.rec.reasons)}
       <div class="btn-row"><button class="btn" id="next-hand">次のハンド<kbd>Space</kbd></button></div>`;
+    dock(`${gradeHTML(g)}<b class="dock-verdict ${rec.rec.action}">${g === 'good' ? '正解！' : '正解は'} ${esc(rec.rec.label)}</b>${moreBtn('理由')}`);
   }
 
   /* ---------- レビュー ---------- */
@@ -611,6 +632,8 @@
       <ol class="timeline">${steps.join('')}</ol>
       <details><summary>全員の手札を見る</summary><div class="showdown-list">${everyone}</div></details>
       <div class="btn-row"><button class="btn" id="next-hand">次のハンド<kbd>Space</kbd></button></div>`;
+    const tally = counts.bad ? `<span class="grade bad">改善 ${counts.bad}</span>` : res.decisions.length ? `<span class="grade good">ナイス ${counts.good + counts.ok}</span>` : '';
+    dock(`<b class="dock-amt ${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${net > 0 ? '+' : net < 0 ? '−' : '±'}${Math.abs(net)}BB</b>${tally}${res.decisions.length ? moreBtn('振り返り') : ''}`);
   }
 
   /* ---------- 操作 ---------- */
@@ -676,6 +699,7 @@
 
       const finish = (choice) => {
         state.turn = null;
+        dock('<span class="dock-wait">相手の番です…</span>');
         setButtonsEnabled(false);
         const g = HE.grade(rec, choice.action);
         if (state.mode !== 'review') recordGrade(g, true);
@@ -696,15 +720,17 @@
           A.play('click');
           setRaise(presets[i][1]);
         },
-        nudge: (dir, big) => {
+        nudge: (dir, steps = 1) => {
           if (!canRaise) return;
-          setRaise(Number(slider.value) + dir * (big ? ctx.bb * 5 : step));
+          setRaise(Number(slider.value) + dir * steps * step);
         },
       };
       flushPendingKey();
     });
   }
 
+  $('raise-minus').onclick = () => state.turn && state.turn.nudge(-1, 2);
+  $('raise-plus').onclick = () => state.turn && state.turn.nudge(1, 2);
   $('btn-fold').onclick = () => state.turn && state.turn.fold();
   $('btn-call').onclick = () => state.turn && state.turn.call();
   $('btn-raise').onclick = () => state.turn && state.turn.raise();
@@ -735,7 +761,7 @@
       }
       const pi = PRESET_KEYS.findIndex(([, c]) => c === code);
       if (pi >= 0) { state.turn.preset(pi); return true; }
-      if (code === 'ArrowLeft' || code === 'ArrowRight') { state.turn.nudge(code === 'ArrowRight' ? 1 : -1, shift); return true; }
+      if (code === 'ArrowLeft' || code === 'ArrowRight') { state.turn.nudge(code === 'ArrowRight' ? 1 : -1, shift ? 10 : 1); return true; }
       if (code === 'KeyH' && $('show-hint')) { $('show-hint').click(); return true; }
       return false;
     }
@@ -878,6 +904,23 @@
   $('opt-sfx').onclick = () => { state.sound.sfx = !state.sound.sfx; A.unlock(); applySound(); A.play('click'); };
   $('opt-vol').oninput = (e) => { state.sound.volume = Number(e.target.value); A.unlock(); applySound(); };
 
+  $('opt-toggle').onclick = () => {
+    const open = document.querySelector('.top').classList.toggle('opts-open');
+    $('opt-toggle').setAttribute('aria-expanded', String(open));
+  };
+
+  // 画面下のバーとヘッダーの高さを CSS に渡し、テーブルを画面に収める
+  const narrowDock = window.matchMedia('(max-width: 820px)');
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => {
+      const root = document.documentElement.style;
+      root.setProperty('--dock-h', `${$('actions').offsetHeight}px`);
+      root.setProperty('--head-h', `${document.querySelector('.top').offsetHeight}px`);
+    });
+    ro.observe($('actions'));
+    ro.observe(document.querySelector('.top'));
+  }
+
   const SPEED = { slow: 1.7, normal: 1, fast: 0.3 };
 
   /* ---------- ゲーム ---------- */
@@ -903,6 +946,7 @@
       if (game.players.length - 1 !== state.opps) game.setOpponents(state.opps);
       const mode = state.mode;
       coach().innerHTML = introHTML('<p class="muted">相手の行動を待っています…</p>');
+      dock(`<span class="dock-label">${MODE_INTRO[state.mode].title}</span><span class="dock-wait">カードを配っています…</span>`);
       drillAnswered = false;
       const res = await game.playHand(mode);
       renderStats();
@@ -910,6 +954,7 @@
         if (drillAnswered) await waitNext();
         else {
           coach().innerHTML = introHTML('<p class="muted">全員がフォールドしたので、次のハンドを配ります。</p>');
+          dock('<span class="dock-wait">全員フォールド。次のハンドを配ります…</span>');
           await sleep(1400);
         }
       } else {
